@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZONEX - Random Earnings Master</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { background-color: #050505; color: white; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .theme-gradient { background: linear-gradient(135deg, #f97316, #991b1b); }
+        .card-bg { background: #111; border: 1px solid #222; border-radius: 15px; transition: 0.3s; }
+        
+        /* ZONEX Glow Animation */
+        @keyframes zonexMove { 0%, 100% { transform: scale(1); text-shadow: 0 0 5px #f97316; } 50% { transform: scale(1.1); text-shadow: 0 0 20px #f97316; } }
+        .zonex-anim { display: inline-block; animation: zonexMove 2s infinite ease-in-out; }
+
+        /* Slider */
+        #slider-container { width: 100%; overflow: hidden; border-radius: 20px; border: 2px solid #f97316; box-shadow: 0 0 20px rgba(249, 115, 22, 0.4); }
+        #slider-wrapper { display: flex; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .slide { min-width: 100%; height: 160px; object-fit: cover; }
+
+        /* Bottom Navigation */
+        .bottom-nav { position: fixed; bottom: 12px; left: 12px; right: 12px; height: 75px; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); border-radius: 25px; border: 1px solid rgba(249, 115, 22, 0.2); display: flex; justify-content: space-around; align-items: center; z-index: 500; }
+        .nav-item { color: #555; display: flex; flex-direction: column; align-items: center; transition: 0.3s; font-weight: 900; width: 20%; font-size: 8px; }
+        .active-tab { color: #f97316; transform: translateY(-5px); text-shadow: 0 0 10px #f97316; }
+
+        .hidden { display: none; }
+        #auth-screen { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; flex-direction: column; justify-content: center; padding: 25px; }
+        #video-modal { position: fixed; inset: 0; background: #000; z-index: 2000; display: none; overflow-y: auto; }
+        
+        .offer-batch { background: rgba(0,0,0,0.5); border: 1px solid #fbbf24; color: #fbbf24; padding: 1px 8px; border-radius: 8px; font-size: 10px; font-weight: 900; }
+        
+        /* Admin Styling */
+        .admin-card { background: #1a1a1a; padding: 15px; border-radius: 20px; border: 1px solid #333; margin-bottom: 15px; }
+        .admin-input { width: 100%; background: #000; border: 1px solid #444; padding: 12px; border-radius: 12px; margin-top: 5px; margin-bottom: 10px; color: white; font-size: 12px; outline: none; }
+        
+        .social-btn { height: 50px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    </style>
+</head>
+<body class="pb-36">
+
+    <!-- 1. AUTH SCREEN -->
+    <div id="auth-screen">
+        <h1 class="text-6xl font-black text-center text-orange-600 mb-10 italic">ZONEX</h1>
+        <div class="space-y-4">
+            <input type="email" id="auth-email" placeholder="Email Address" class="w-full p-4 bg-zinc-900 rounded-2xl border border-zinc-800 outline-none font-bold text-white">
+            <input type="password" id="auth-pass" placeholder="Password" class="w-full p-4 bg-zinc-900 rounded-2xl border border-zinc-800 outline-none font-bold text-white">
+            <button onclick="loginUser()" class="w-full theme-gradient p-4 rounded-2xl font-black text-xl shadow-xl">ENTER APP</button>
+            <button onclick="signupUser()" class="w-full border-2 border-zinc-700 p-4 rounded-2xl font-bold text-gray-500">CREATE ACCOUNT</button>
+        </div>
+        <p id="auth-msg" class="text-orange-500 text-xs mt-6 text-center font-black"></p>
+    </div>
+
+    <!-- 2. HEADER -->
+    <header class="theme-gradient p-2 px-5 flex justify-between items-center sticky top-0 z-50 shadow-xl">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full border-2 border-white overflow-hidden cursor-pointer" onclick="triggerUpload()">
+                <img src="https://via.placeholder.com/100" id="header-profile-img" class="w-full h-full object-cover">
+            </div>
+            <h1 class="text-xl font-black italic zonex-anim">ZONEX</h1>
+        </div>
+        <div class="offer-batch">85 OF OFFER</div>
+        <div class="flex gap-4 items-center">
+            <i class="fas fa-search text-xl cursor-pointer" onclick="toggleSearch()"></i>
+            <i class="fas fa-bars text-xl cursor-pointer" onclick="toggleMenu()"></i>
+        </div>
+    </header>
+
+    <!-- Search Bar -->
+    <div id="search-bar" class="hidden p-4 bg-zinc-900 border-b-2 border-orange-500 sticky top-[55px] z-40">
+        <input type="text" id="app-search-input" onkeyup="searchApps(event)" placeholder="Search apps..." class="w-full p-3 bg-black rounded-xl border border-zinc-700 text-white font-bold outline-none">
+    </div>
+
+    <main id="main-content">
+        <!-- Home Tab -->
+        <section id="home-page" class="p-4">
+            <div id="slider-container" class="mb-6">
+                <div id="slider-wrapper"></div>
+            </div>
+            <h2 class="text-orange-500 font-black mb-4 text-[10px] tracking-widest uppercase italic">🔥 Live Games & Apps</h2>
+            <div id="app-grid" class="grid grid-cols-2 gap-3 pb-10">
+                <!-- Apps loaded from Firebase Live -->
+            </div>
+        </section>
+
+        <!-- Admin Tab (Only for Admin) -->
+        <section id="admin-page" class="p-4 hidden">
+            <h2 class="text-orange-500 font-black mb-6 italic">🛠 MASTER CONTROL</h2>
+            <div class="admin-card">
+                <h3 class="text-xs font-black text-gray-500 mb-2">PUBLISH APP</h3>
+                <input id="adm-name" type="text" placeholder="App Name" class="admin-input">
+                <input id="adm-logo" type="text" placeholder="Logo URL" class="admin-input">
+                <input id="adm-video" type="text" placeholder="Tutorial Link" class="admin-input">
+                <input id="adm-link" type="text" placeholder="Download Link" class="admin-input">
+                <button onclick="publishApp()" class="w-full theme-gradient p-3 rounded-xl font-black">PUBLISH NOW</button>
+            </div>
+            <div class="admin-card">
+                <h3 class="text-xs font-black text-gray-500 mb-2">SLIDER & SETTINGS</h3>
+                <input id="adm-slide" type="text" placeholder="New Banner URL" class="admin-input">
+                <input id="adm-rules" type="text" placeholder="Update Rules Text" class="admin-input">
+                <button onclick="updateSettings()" class="w-full bg-blue-600 p-3 rounded-xl font-black">SAVE SETTINGS</button>
+            </div>
+            <div class="admin-card">
+                <h3 class="text-xs font-black text-gray-400 mb-2">LIVE USERS</h3>
+                <div id="admin-user-list" class="text-[10px] space-y-2 max-h-40 overflow-y-auto"></div>
+            </div>
+        </section>
+
+        <!-- History & Leaderboard remain the same structure -->
+        <section id="history-page" class="p-4 hidden">
+            <h2 class="text-orange-500 font-black mb-6 italic text-center">EARNING HISTORY</h2>
+            <div id="history-list" class="space-y-2"></div>
+        </section>
+
+        <section id="topuser-page" class="p-4 hidden">
+            <h2 class="text-orange-500 font-black mb-6 italic text-center">🏆 TOP LEADERS</h2>
+            <div id="top-user-list" class="space-y-3"></div>
+        </section>
+
+        <!-- Profile Section -->
+        <section id="profile-page" class="p-4 hidden">
+            <div class="flex flex-col items-center py-6">
+                <div class="w-24 h-24 rounded-full border-2 border-orange-500 overflow-hidden mb-4 shadow-2xl" onclick="triggerUpload()">
+                    <img src="https://via.placeholder.com/150" id="main-profile-img" class="w-full h-full object-cover">
+                </div>
+                <h2 class="text-2xl font-black italic uppercase tracking-tighter" id="user-display">Zonex User</h2>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-6 px-2">
+                <div class="social-btn bg-green-500 shadow-lg" onclick="window.open('https://wa.me/YOURNUMBER')"><i class="fab fa-whatsapp"></i></div>
+                <div class="social-btn bg-blue-500 shadow-lg" onclick="window.open('https://t.me/YOURCHANNEL')"><i class="fab fa-telegram-plane"></i></div>
+                <div class="social-btn bg-gradient-to-tr from-yellow-500 via-red-500 to-purple-600 shadow-lg" onclick="window.open('https://instagram.com/YOURID')"><i class="fab fa-instagram"></i></div>
+            </div>
+            <div class="space-y-3 px-2">
+                <button class="w-full bg-zinc-900 p-4 rounded-xl font-black text-sm text-left flex items-center gap-3" onclick="alert('Link: https://zonex-aap.web.app')">📤 SHARE APP</button>
+                <button class="w-full bg-zinc-900 p-4 rounded-xl font-black text-sm text-left flex items-center gap-3" onclick="showRules()">📜 RULES</button>
+                <button class="w-full bg-zinc-900 p-4 rounded-xl font-black text-sm text-left flex items-center gap-3" onclick="showDisclaimer()">⚖️ DISCLAIMER</button>
+                <button class="w-full border border-red-900 p-4 rounded-xl font-black text-sm text-red-600" onclick="logout()">🚪 LOGOUT</button>
+            </div>
+        </section>
+    </main>
+<!-- 3. MODALS & NAV -->
+    <div id="video-modal">
+        <div class="p-4 theme-gradient flex items-center justify-between sticky top-0">
+            <i class="fas fa-arrow-left text-xl" onclick="closeApp()"></i>
+            <h2 class="font-black italic uppercase">Tutorial</h2>
+            <div></div>
+        </div>
+        <video id="modal-video" controls class="w-full aspect-video bg-black"></video>
+        <div class="p-10 text-center">
+            <img src="" id="modal-logo" class="w-24 h-24 rounded-2xl border-2 border-orange-500 mx-auto mb-6 shadow-2xl">
+            <h2 id="modal-app-name" class="text-3xl font-black text-orange-500 mb-2 uppercase"></h2>
+            <p class="text-gray-500 mb-10 text-[10px] font-bold italic">Watch video carefully to earn rewards.</p>
+            <a id="modal-download-link" href="#" target="_blank">
+                <button class="theme-gradient w-full py-5 rounded-3xl font-black text-xl shadow-2xl active:scale-95 transition-all">DOWNLOAD NOW</button>
+            </a>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation (ADMIN Tab Hidden for users) -->
+    <nav class="bottom-nav">
+        <div onclick="switchTab('home')" id="tab-home" class="nav-item active-tab"><i class="fas fa-home text-2xl"></i><span>HOME</span></div>
+        <div onclick="switchTab('history')" id="tab-history" class="nav-item"><i class="fas fa-history text-2xl"></i><span>HISTORY</span></div>
+        <div id="admin-nav-tab" onclick="switchTab('admin')" class="nav-item hidden"><i class="fas fa-user-shield text-2xl"></i><span>ADMIN</span></div>
+        <div onclick="switchTab('topuser')" id="tab-topuser" class="nav-item"><i class="fas fa-medal text-2xl"></i><span>TOP LIST</span></div>
+        <div onclick="switchTab('profile')" id="tab-profile" class="nav-item"><i class="fas fa-user-circle text-2xl"></i><span>PROFILE</span></div>
+    </nav>
+
+    <input type="file" id="profile-upload" class="hidden" accept="image/*" onchange="previewImage(event)">
+
+    <script>
+        // --- YOUR FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCStJP0-bQlDiYigotP8hV2KFHWgVUM8_0",
+            authDomain: "commission-aap.firebaseapp.com",
+            databaseURL: "https://commission-aap-default-rtdb.firebaseio.com",
+            projectId: "commission-aap",
+            storageBucket: "commission-aap.firebasestorage.app",
+            messagingSenderId: "790698383096",
+            appId: "1:790698383096:web:046de4b7a4b8fc43fecd0d"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // --- AUTH LOGIC ---
+        function loginUser() {
+            const e = document.getElementById('auth-email').value;
+            const p = document.getElementById('auth-pass').value;
+            auth.signInWithEmailAndPassword(e, p).catch(err => alert("Login Error: " + err.message));
+        }
+
+        function signupUser() {
+            const e = document.getElementById('auth-email').value;
+            const p = document.getElementById('auth-pass').value;
+            auth.createUserWithEmailAndPassword(e, p).then(res => {
+                db.ref('users/' + res.user.uid).set({ email: e, joined: Date.now(), status: 'active' });
+                alert("Success! Now Enter App.");
+            }).catch(err => alert(err.message));
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('user-display').innerText = user.email.split('@')[0];
+                if(user.email === "admin@zonex.com") {
+                    document.getElementById('admin-nav-tab').classList.remove('hidden');
+                    loadAdminData();
+                }
+                loadLiveData();
+            }
+        });
+
+        // --- ADMIN FUNCTIONS ---
+        function publishApp() {
+            const name = document.getElementById('adm-name').value;
+            const logo = document.getElementById('adm-logo').value;
+            const video = document.getElementById('adm-video').value;
+            const link = document.getElementById('adm-link').value;
+            if(!name || !link) return alert("Details bhariye!");
+            db.ref('live_apps').push({ name, logo, video, link }).then(() => {
+                alert("Published!");
+                location.reload();
+            });
+        }
+
+        function updateSettings() {
+            const slide = document.getElementById('adm-slide').value;
+            const rules = document.getElementById('adm-rules').value;
+            if(slide) db.ref('settings/slider').set({ img: slide });
+            if(rules) db.ref('settings/config').update({ rules: rules });
+            alert("Settings Updated!");
+        }
+
+        function loadAdminData() {
+            db.ref('users').on('value', snap => {
+                const list = document.getElementById('admin-user-list');
+                list.innerHTML = "";
+                snap.forEach(u => list.innerHTML += `<div class="bg-black p-2 rounded mb-1">${u.val().email}</div>`);
+            });
+        }
+
+        // --- USER DATA LOADING ---
+        function loadLiveData() {
+            db.ref('settings/slider').on('value', snap => {
+                if(snap.val()) document.getElementById('slider-wrapper').innerHTML = `<img src="${snap.val().img}" class="slide">`;
+            });
+            db.ref('live_apps').on('value', snap => {
+                const grid = document.getElementById('app-grid');
+                grid.innerHTML = "";
+                snap.forEach(appSnap => {
+                    const app = appSnap.val();
+                    grid.innerHTML += `
+                        <div class="card-bg p-3 flex items-center gap-3 cursor-pointer app-card" data-name="${app.name}" 
+                             onclick="openApp('${app.name}', '${app.video}', '${app.link}', '${app.logo}')">
+                            <img src="${app.logo}" class="w-14 h-14 rounded-xl border border-orange-500 shadow-md">
+                            <h3 class="text-[10px] font-black uppercase truncate">${app.name}</h3>
+                        </div>`;
+                });
+            });
+        }
+
+        // --- UI HELPERS ---
+        function switchTab(tab) {
+            ['home', 'history', 'topuser', 'admin', 'profile'].forEach(t => {
+                const p = document.getElementById(t + '-page');
+                if(p) p.classList.add('hidden');
+                const btn = document.getElementById('tab-' + t);
+                if(btn) btn.classList.remove('active-tab');
+            });
+            document.getElementById(tab + '-page').classList.remove('hidden');
+            if(tab === 'history') loadHistory();
+            if(tab === 'topuser') loadTopUsers();
+        }
+
+        function openApp(n, v, l, lo) {
+            document.getElementById('modal-app-name').innerText = n;
+            document.getElementById('modal-video').src = v;
+            document.getElementById('modal-logo').src = lo;
+            document.getElementById('modal-download-link').href = l;
+            document.getElementById('video-modal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function searchApps(e) {
+            let v = document.getElementById('app-search-input').value.toLowerCase();
+            let g = document.getElementById('app-grid');
+            let c = Array.from(document.getElementsByClassName('app-card'));
+            c.forEach(card => {
+                if(card.getAttribute('data-name').toLowerCase().includes(v)) {
+                    card.style.display = "flex";
+                    if(v.length > 0) g.prepend(card);
+                } else { card.style.display = "none"; }
+            });
+            if(e.key === "Enter") document.getElementById('app-search-input').blur();
+        }
+
+        function closeApp() { document.getElementById('video-modal').style.display = 'none'; document.getElementById('modal-video').pause(); document.body.style.overflow = 'auto'; }
+        function toggleSearch() { let b = document.getElementById('search-bar'); b.classList.toggle('hidden'); if(!b.classList.contains('hidden')) document.getElementById('app-search-input').focus(); }
+        function logout() { auth.signOut().then(() => location.reload()); }
+        function triggerUpload() { document.getElementById('profile-upload').click(); }
+        function previewImage(event) {
+            const r = new FileReader();
+            r.onload = function() { document.getElementById('header-profile-img').src = r.result; document.getElementById('main-profile-img').src = r.result; };
+            r.readAsDataURL(event.target.files[0]);
+        }
+        function toggleMenu() { alert("Use Profile tab for Rules/Settings"); }
+
+        function loadHistory() {
+            const list = document.getElementById('history-list');
+            let data = "";
+            for(let i=0; i<15; i++) data += `<div class="card-bg p-4 flex justify-between items-center"><span class="font-black text-[10px] text-gray-500 italic">User Won ₹${Math.floor(Math.random()*50000)+250}</span><span class="text-green-500 font-black text-xs">SUCCESS ●</span></div>`;
+            list.innerHTML = data;
+        }
+
+        function loadTopUsers() {
+            const list = document.getElementById('top-user-list');
+            const u = [{n:"Aman",a:"₹59k",r:"🥇"},{n:"Rahul",a:"₹48k",r:"🥈"},{n:"Sneha",a:"₹42k",r:"🥉"},{n:"Vikram",a:"₹30k",r:"4"}];
+            let data = "";
+            u.forEach(x => data += `<div class="card-bg p-5 flex justify-between items-center border-l-4 border-orange-500"><span class="font-black">${x.r} ${x.n}</span><span class="text-orange-500 font-black">${x.a}</span></div>`);
+            list.innerHTML = data;
+        }
+        
+        function showRules() { db.ref('settings/config/rules').once('value', s => alert(s.val() || "No rules set.")); }
+        function showDisclaimer() { alert("ZONEX: For Entertainment & Rewards only."); }
+    </script>
+</body>
+</html>
